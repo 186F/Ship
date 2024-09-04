@@ -23,6 +23,17 @@
             font-weight: bold;
             margin-bottom: 5px;
         }
+        #reverseButton {
+            padding: 5px 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        #reverseButton:hover {
+            background-color: #45a049;
+        }
     </style>
 </head>
 <body>
@@ -46,6 +57,9 @@
         <div class="module">
             <div class="module-title">Camera Distance</div>
             <span id="cameraDistance">0</span>
+        </div>
+        <div class="module">
+            <button id="reverseButton">Reverse Direction</button>
         </div>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -187,14 +201,56 @@
             console.error('An error occurred while loading the model:', error);
         });
 
+        let isReversed = false;
+        let isRotating = false;
+        let rotationProgress = 0;
+        const rotationDuration = 1000; // milliseconds
+        let lastRotationTime = 0;
+
         // Animation loop
         let time = 0;
-        function animate() {
+        function animate(currentTime) {
             requestAnimationFrame(animate);
 
-            time += speed;
+            // Handle ship rotation
+            if (isRotating && ship) {
+                const deltaTime = currentTime - lastRotationTime;
+                rotationProgress += deltaTime / rotationDuration;
+                
+                if (rotationProgress >= 1) {
+                    rotationProgress = 1;
+                    isRotating = false;
+                    ship.rotation.y = isReversed ? 0 : Math.PI;
+                } else {
+                    const angle = isReversed ? 
+                        Math.PI * (1 - rotationProgress) : 
+                        Math.PI * rotationProgress;
+                    ship.rotation.y = angle;
+                }
+                
+                lastRotationTime = currentTime;
+            }
+
+            time += speed * (isReversed ? -1 : 1);
             starField.material.uniforms.time.value = time;
             starField.material.uniforms.speed.value = speed;
+
+            // Move stars to create flying effect
+            const positions = starField.geometry.attributes.position.array;
+            for (let i = 0; i < positions.length; i += 3) {
+                positions[i + 2] += speed * (isReversed ? -1 : 1);
+
+                if (isReversed) {
+                    if (positions[i + 2] < -1000) {
+                        positions[i + 2] += 2000;
+                    }
+                } else {
+                    if (positions[i + 2] > 1000) {
+                        positions[i + 2] -= 2000;
+                    }
+                }
+            }
+            starField.geometry.attributes.position.needsUpdate = true;
 
             controls.update();
 
@@ -213,7 +269,6 @@
 
             // Update FPS counter
             frameCount++;
-            const currentTime = performance.now();
             if (currentTime > lastTime + 1000) {
                 const fps = Math.round((frameCount * 1000) / (currentTime - lastTime));
                 document.getElementById('fpsCounter').textContent = fps;
@@ -227,7 +282,6 @@
                 document.getElementById('cameraDistance').textContent = distance.toFixed(2);
             }
         }
-        animate();
 
         // Handle window resizing
         function updateCameraAndRenderer() {
@@ -255,6 +309,21 @@
             starSizeValue.textContent = size.toFixed(0);
             starField.material.uniforms.baseSize.value = size;
         });
+
+        // Add event listener for reverse button
+        const reverseButton = document.getElementById('reverseButton');
+        reverseButton.addEventListener('click', () => {
+            if (!isRotating) {
+                isReversed = !isReversed;
+                isRotating = true;
+                rotationProgress = 0;
+                lastRotationTime = performance.now();
+                reverseButton.textContent = isReversed ? "Forward Direction" : "Reverse Direction";
+            }
+        });
+
+        // Start the animation loop
+        animate(performance.now());
     </script>
 </body>
 </html>
